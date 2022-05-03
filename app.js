@@ -5,7 +5,7 @@ const url = require('url');
 const localStorage = require('local-storage');
 
 const server = http.createServer(function (req, res) {
-       readSession(req, res);
+    readSession(req, res);
 });
 
 server.listen(8080, function () {
@@ -79,6 +79,14 @@ var createTokenSession = function (fileName, data){
     fs.writeFile(fileName, data, err => {
     });
 }
+var deleteTokenSession = function (fileName){
+    fileName = './token/' + fileName;
+    fs.unlink(fileName, err => {
+        if (err) throw err;
+        console.log('File deleted!');
+    });
+    localStorage.remove("token");
+}
 //tạo ra chuỗi ngẫu nhiên
 var createRandomString = function (strLength){
     strLength = typeof(strLength) == 'number' & strLength >0 ? strLength:false;
@@ -113,27 +121,36 @@ var readSession = function(req, res){
             // so sánh thời gian hết hạn với thời hạn của sessionID
             if (expires<now){
                 //Đã đăng nhập nhưng hết hạn
-                //Thực hành đăng nhập và lư lại
-                var parseUrl = url.parse(req.url, true);
-                // //get the path
-                var path = parseUrl.pathname;
-                var trimPath = path.replace(/^\/+|\/+$/g, '');
-                var chosenHandler = (typeof (router[trimPath]) !== 'undefined') ? router[trimPath] : handlers.notfound;
-                chosenHandler(req, res);
+                //xoa session
+                deleteTokenSession(tokenID);
+                //Thực hành đăng nhập và lưu lại
+                router.login(req, res);
             }
             else {
                 // Đã đăng nhập và chưa hết hạn
                 // chuyển sang trang dashboard
-                fs.readFile('./views/dashboard.html', 'utf8', function (err, datahtml) {
-                    if (err) {
-                        console.log(err);
-                    }
-                    datahtml = datahtml.replace('{name}', JSON.parse(sessionString).name);
-                    datahtml = datahtml.replace('{email}', JSON.parse(sessionString).email);
-                    res.writeHead(200, { 'Content-Type': 'text/html' });
-                    res.write(datahtml);
-                    return res.end();
-                });
+                var parseUrl = url.parse(req.url, true);
+                var path = parseUrl.pathname;
+                var trimPath = path.replace(/^\/+|\/+$/g, '');
+                //Nếu đường dẫn là /logout thì thực hiện xoá session và chuyển về trang login
+                if (trimPath=="logout") {
+                    console.log("logout");
+                    deleteTokenSession(tokenID);
+                    router.login(req, res);
+                }
+                else {
+                    fs.readFile('./views/dashboard.html', 'utf8', function (err, datahtml) {
+                        if (err) {
+                            console.log(err);
+                        }
+                        datahtml = datahtml.replace('{name}', JSON.parse(sessionString).name);
+                        datahtml = datahtml.replace('{email}', JSON.parse(sessionString).email);
+                        res.writeHead(200, { 'Content-Type': 'text/html' });
+                        res.write(datahtml);
+                        return res.end();
+                    });
+                }
+
             }
         });
     }
